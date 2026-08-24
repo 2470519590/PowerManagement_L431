@@ -1,0 +1,26 @@
+# Build outputs
+/build/
+/tmp/
+
+# Object / dependency / listing files
+*.o
+*.d
+*.lst
+*.map
+
+# Firmware images
+*.elf
+*.hex
+*.bin
+
+# CubeMX / generated metadata
+.mxproject
+
+# Backup and temporary files
+*.bak
+*.tmp
+*.log
+
+# Editor / OS junk
+.DS_Store
+Thumbs.db

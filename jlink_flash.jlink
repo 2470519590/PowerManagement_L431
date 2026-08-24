@@ -1,0 +1,7 @@
+device STM32L431RC
+si SWD
+speed 4000
+loadfile build/L431PM.hex
+r
+g
+exit
