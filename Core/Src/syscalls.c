@@ -30,9 +30,6 @@
 #include <sys/time.h>
 #include <sys/times.h>
 
-#include "usart.h"
-
-
 /* Variables */
 extern int __io_putchar(int ch) __attribute__((weak));
 extern int __io_getchar(void) __attribute__((weak));
@@ -62,9 +59,8 @@ int _kill(int pid, int sig)
 
 int __io_putchar(int ch)
 {
-  uint8_t c = (uint8_t)ch;
-  (void)HAL_UART_Transmit(&hlpuart1, &c, 1U, 10U);
-  return ch;
+  (void)ch;
+  return -1;
 }
 
 void _exit (int status)
@@ -89,13 +85,9 @@ __attribute__((weak)) int _read(int file, char *ptr, int len)
 __attribute__((weak)) int _write(int file, char *ptr, int len)
 {
   (void)file;
-  int DataIdx;
-
-  for (DataIdx = 0; DataIdx < len; DataIdx++)
-  {
-    __io_putchar(*ptr++);
-  }
-  return len;
+  (void)ptr;
+  (void)len;
+  return -1;
 }
 
 int _close(int file)

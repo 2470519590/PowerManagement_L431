@@ -22,9 +22,9 @@
 #include "adc.h"
 #include "stm32l4xx_it.h"
 
-void HAL_SYSTICK_Callback(void);
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "usart.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -189,8 +189,8 @@ void SysTick_Handler(void)
 
   /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();
-  HAL_SYSTICK_Callback();
   /* USER CODE BEGIN SysTick_IRQn 1 */
+  HAL_SYSTICK_Callback();
 
   /* USER CODE END SysTick_IRQn 1 */
 }
@@ -217,5 +217,10 @@ void ADC1_IRQHandler(void)
 /******************************************************************************/
 
 /* USER CODE BEGIN 1 */
+
+void LPUART1_IRQHandler(void)
+{
+  HAL_UART_IRQHandler(&hlpuart1);
+}
 
 /* USER CODE END 1 */

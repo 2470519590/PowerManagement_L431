@@ -109,12 +109,9 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    /* ADC1 interrupt setup for 1kHz sampling completion handling */
+  /* USER CODE BEGIN ADC1_MspInit 1 */
     HAL_NVIC_SetPriority(ADC1_2_IRQn, 4, 0);
     HAL_NVIC_EnableIRQ(ADC1_2_IRQn);
-
-
-  /* USER CODE BEGIN ADC1_MspInit 1 */
 
   /* USER CODE END ADC1_MspInit 1 */
   }

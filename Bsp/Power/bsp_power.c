@@ -1,11 +1,11 @@
 #include "bsp_power.h"
+#include "main.h"
 
 void BSP_Power_Init(void)
 {
-  /* AMMO is the only enabled power path on this PCB. */
-  HAL_GPIO_WritePin(INT_CHASSIS_GPIO_Port, INT_CHASSIS_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(INT_GIMBAL_GPIO_Port, INT_GIMBAL_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(INT_MINI_PC_GPIO_Port, INT_MINI_PC_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(INT_CHASSIS_GPIO_Port, INT_CHASSIS_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(INT_GIMBAL_GPIO_Port, INT_GIMBAL_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(INT_MINI_PC_GPIO_Port, INT_MINI_PC_Pin, GPIO_PIN_SET);
 }
 
 void BSP_Power_AmmoOn(void)

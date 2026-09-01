@@ -38,9 +38,14 @@ BUILD_DIR = build
 C_SOURCES =  \
 Core/Src/main.c \
 Application/Power/app_power.c \
+Application/Protocol/app_protocol.c \
 Bsp/Power/bsp_power.c \
 Bsp/Power/bsp_adc.c \
 Bsp/Power/bsp_ina180.c \
+Bsp/bsp_time.c \
+Bsp/bsp_uart.c \
+Bsp/bsp_critical.c \
+Bsp/bsp_watchdog.c \
 Core/Src/adc.c \
 Core/Src/gpio.c \
 Core/Src/can.c \
@@ -132,6 +137,7 @@ AS_INCLUDES =
 C_INCLUDES =  \
 -ICore/Inc \
 -IApplication/Power \
+-IApplication/Protocol \
 -IBsp \
 -IBsp/Power \
 -IDrivers/STM32L4xx_HAL_Driver/Inc \

@@ -1,6 +1,7 @@
 # Build outputs
 /build/
 /tmp/
+/.vscode/
 
 # Object / dependency / listing files
 *.o

@@ -3,8 +3,17 @@
 
 static BSP_AdcAmmoCallback_t ammo_callback;
 
-static BSP_AdcStatus_t BSP_Adc_ConvertStatus(HAL_StatusTypeDef status)
+uint8_t BSP_Adc_CalibrateAmmo(void)
 {
+  return (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) == HAL_OK)
+             ? 1U
+             : 0U;
+}
+
+BSP_AdcStatus_t BSP_Adc_StartAmmo(void)
+{
+  HAL_StatusTypeDef status = HAL_ADC_Start_IT(&hadc1);
+
   if (status == HAL_OK)
   {
     return BSP_ADC_STATUS_OK;
@@ -14,17 +23,6 @@ static BSP_AdcStatus_t BSP_Adc_ConvertStatus(HAL_StatusTypeDef status)
     return BSP_ADC_STATUS_BUSY;
   }
   return BSP_ADC_STATUS_ERROR;
-}
-
-BSP_AdcStatus_t BSP_Adc_CalibrateAmmo(void)
-{
-  return BSP_Adc_ConvertStatus(
-      HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED));
-}
-
-BSP_AdcStatus_t BSP_Adc_StartAmmo(void)
-{
-  return BSP_Adc_ConvertStatus(HAL_ADC_Start_IT(&hadc1));
 }
 
 void BSP_Adc_RegisterAmmoCallback(BSP_AdcAmmoCallback_t callback)
@@ -39,5 +37,5 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
     return;
   }
 
-  ammo_callback((uint16_t)HAL_ADC_GetValue(hadc), HAL_GetTick());
+  ammo_callback((uint16_t)HAL_ADC_GetValue(hadc));
 }

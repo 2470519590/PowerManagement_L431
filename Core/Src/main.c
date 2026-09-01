@@ -23,6 +23,8 @@
 #include "usart.h"
 #include "gpio.h"
 #include "app_power.h"
+#include "app_protocol.h"
+#include "bsp_watchdog.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -76,7 +78,9 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
-  APP_Power_Init();
+  (void)BSP_Watchdog_Init();
+  APP_Power_Init(BSP_Watchdog_WasReset());
+  APP_Protocol_Init();
 
   /* USER CODE END 2 */
 
@@ -85,7 +89,8 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    APP_Power_Task();
+    APP_Protocol_Task();
+    BSP_Watchdog_Feed();
 
     /* USER CODE BEGIN 3 */
   }

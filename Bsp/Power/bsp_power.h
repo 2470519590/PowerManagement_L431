@@ -1,8 +1,6 @@
 #ifndef BSP_POWER_H
 #define BSP_POWER_H
 
-#include "main.h"
-
 void BSP_Power_Init(void);
 void BSP_Power_AmmoOn(void);
 void BSP_Power_AmmoOff(void);

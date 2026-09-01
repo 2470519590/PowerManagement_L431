@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+typedef void (*BSP_AdcAmmoCallback_t)(uint16_t adc_raw);
+
 typedef enum
 {
   BSP_ADC_STATUS_OK = 0U,
@@ -10,10 +12,7 @@ typedef enum
   BSP_ADC_STATUS_ERROR
 } BSP_AdcStatus_t;
 
-typedef void (*BSP_AdcAmmoCallback_t)(uint16_t adc_raw,
-                                      uint32_t sample_tick);
-
-BSP_AdcStatus_t BSP_Adc_CalibrateAmmo(void);
+uint8_t BSP_Adc_CalibrateAmmo(void);
 BSP_AdcStatus_t BSP_Adc_StartAmmo(void);
 void BSP_Adc_RegisterAmmoCallback(BSP_AdcAmmoCallback_t callback);
 
