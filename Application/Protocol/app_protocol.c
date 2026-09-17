@@ -1,5 +1,8 @@
 #include "app_protocol.h"
+#include "app_match.h"
 #include "app_power.h"
+#include "app_armor_enum.h"
+#include "app_referee_can.h"
 #include "bsp_uart.h"
 #include <stdio.h>
 #include <string.h>
@@ -20,6 +23,7 @@ static PowerReportSnapshot_t protocol_status_snapshot;
 static uint32_t protocol_status_sequence;
 static uint32_t protocol_last_status_sequence;
 static uint32_t protocol_last_fire_event_sequence;
+static uint8_t protocol_identity_waiting;
 
 static uint8_t APP_Protocol_ParseUnsigned(const char *text, uint32_t *value);
 static uint8_t APP_Protocol_ParseDeciJoule(const char *text, uint16_t *value);
@@ -31,6 +35,8 @@ static void APP_Protocol_HandleLine(char *line);
 static void APP_Protocol_SendStatus(void);
 static void APP_Protocol_SendRaw(void);
 static void APP_Protocol_SendFireEvent(void);
+static void APP_Protocol_SendArmorList(void);
+static void APP_Protocol_PollArmorIdentity(void);
 
 void APP_Protocol_Init(void)
 {
@@ -45,6 +51,7 @@ void APP_Protocol_Init(void)
   protocol_status_sequence = 0U;
   protocol_last_status_sequence = 0U;
   protocol_last_fire_event_sequence = 0U;
+  protocol_identity_waiting = 0U;
 }
 
 void APP_Protocol_Task(void)
@@ -83,6 +90,7 @@ void APP_Protocol_Task(void)
   }
 
   APP_Protocol_SendFireEvent();
+  APP_Protocol_PollArmorIdentity();
   APP_Protocol_SendStatus();
   APP_Protocol_TxTask();
   BSP_Uart_Task();
@@ -230,6 +238,46 @@ static void APP_Protocol_HandleLine(char *line)
   const char *ack_name = "CMD";
   uint8_t command_ok = 0U;
 
+  if (strcmp(line, "ARMOR=LIST") == 0)
+  {
+    APP_Protocol_SendArmorList();
+    return;
+  }
+  if (strncmp(line, "ARMOR=ID?=", 10U) == 0)
+  {
+    APP_ArmorIdQueryStatus_t status;
+    char message[64];
+    if (APP_Protocol_ParseUnsigned(&line[10], &value) == 0U || value > 255U)
+    {
+      (void)APP_Protocol_Send("ARMOR,ID?,ERR=INVALID_NODE");
+      return;
+    }
+    status = APP_RefereeCan_RequestArmorIdentity((uint8_t)value);
+    if (status == APP_ARMOR_ID_QUERY_PENDING)
+    {
+      (void)snprintf(message, sizeof(message), "ARMOR,ID?,REQ=%lu,PENDING", (unsigned long)value);
+      (void)APP_Protocol_Send(message);
+      protocol_identity_waiting = 1U;
+    }
+    else if (status == APP_ARMOR_ID_QUERY_ENUM_NOT_READY)
+    {
+      (void)APP_Protocol_Send("ARMOR,ID?,ERR=ENUM_NOT_READY");
+    }
+    else if (status == APP_ARMOR_ID_QUERY_BUSY)
+    {
+      (void)APP_Protocol_Send("ARMOR,ID?,ERR=BUSY");
+    }
+    else if (status == APP_ARMOR_ID_QUERY_TX_FAILED)
+    {
+      (void)APP_Protocol_Send("ARMOR,ID?,ERR=CAN_TX");
+    }
+    else
+    {
+      (void)APP_Protocol_Send("ARMOR,ID?,ERR=INVALID_NODE");
+    }
+    return;
+  }
+
   if (strcmp(line, "PING") == 0)
   {
     (void)APP_Protocol_Send("PONG");
@@ -319,6 +367,66 @@ static void APP_Protocol_HandleLine(char *line)
   }
 }
 
+static void APP_Protocol_SendArmorList(void)
+{
+  uint8_t i;
+  for (i = 0U; i < APP_ARMOR_ENUM_REQUIRED_NODE_COUNT; i++)
+  {
+    const APP_ArmorEnumNode_t *e = &armor_enum_diag.nodes[i];
+    const APP_ArmorNodeMonitor_t *m = &referee_can_monitor.armor_nodes[i];
+    char message[120];
+    int length = snprintf(message, sizeof(message),
+                          "ARMOR,LIST,N=%u,UID=%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,TOKEN=%06lX,ACK=%u,ONLINE=%u,LAST=%lu,STATE=%u,FAULT=%04X",
+                          (unsigned int)e->node_id,
+                          (unsigned int)e->uid[0], (unsigned int)e->uid[1],
+                          (unsigned int)e->uid[2], (unsigned int)e->uid[3],
+                          (unsigned int)e->uid[4], (unsigned int)e->uid[5],
+                          (unsigned int)e->uid[6], (unsigned int)e->uid[7],
+                          (unsigned int)e->uid[8], (unsigned int)e->uid[9],
+                          (unsigned int)e->uid[10], (unsigned int)e->uid[11],
+                          (unsigned long)e->token, (unsigned int)e->acked,
+                          (unsigned int)m->online, (unsigned long)m->last_rx_tick,
+                          (unsigned int)m->state, (unsigned int)m->fault_flags);
+    if (length <= 0 || (uint16_t)length >= sizeof(message) || APP_Protocol_Send(message) == 0U)
+    {
+      (void)APP_Protocol_Send("ARMOR,LIST,ERR=TX_QUEUE");
+      return;
+    }
+  }
+}
+
+static void APP_Protocol_PollArmorIdentity(void)
+{
+  APP_ArmorIdQuery_t query;
+  char message[96];
+  int length;
+  if (protocol_identity_waiting == 0U) { return; }
+  APP_RefereeCan_GetArmorIdentityQuery(&query);
+  if (query.status == APP_ARMOR_ID_QUERY_PENDING) { return; }
+  protocol_identity_waiting = 0U;
+  if (query.status == APP_ARMOR_ID_QUERY_OK || query.status == APP_ARMOR_ID_QUERY_MISMATCH)
+  {
+    length = snprintf(message, sizeof(message),
+                      "ARMOR,ID?,REQ=%u,REPLY=%u,TOKEN=%06lX,CRC=%04X,%s",
+                      (unsigned int)query.requested_node_id,
+                      (unsigned int)query.reply_node_id,
+                      (unsigned long)query.reply_token,
+                      (unsigned int)query.reply_uid_crc16,
+                      (query.status == APP_ARMOR_ID_QUERY_OK) ? "OK" : "MISMATCH");
+  }
+  else if (query.status == APP_ARMOR_ID_QUERY_TIMEOUT)
+  {
+    length = snprintf(message, sizeof(message), "ARMOR,ID?,REQ=%u,TIMEOUT",
+                      (unsigned int)query.requested_node_id);
+  }
+  else
+  {
+    length = snprintf(message, sizeof(message), "ARMOR,ID?,REQ=%u,ERR",
+                      (unsigned int)query.requested_node_id);
+  }
+  if (length > 0 && (uint16_t)length < sizeof(message)) { (void)APP_Protocol_Send(message); }
+}
+
 static void APP_Protocol_SendStatus(void)
 {
   char status[128];
@@ -343,7 +451,7 @@ static void APP_Protocol_SendStatus(void)
   }
 
   length = snprintf(status, sizeof(status),
-                    "STA,PAVG=%lu,IAVG=%lu,OV=%u,SAT=%u,CUT=%u,OCP=%u,BUF=%u.%u,LIM=%u,CUR=%lu,CHS=%s,RSV=%s,FIRE=%s",
+                    "STA,PAVG=%lu,IAVG=%lu,OV=%u,SAT=%u,CUT=%u,OCP=%u,BUF=%u.%u,LIM=%u,CUR=%lu,CHS=%s,RSV=%s,PROT=%s",
                     (unsigned long)protocol_status_snapshot.chassis_power_avg_w,
                     (unsigned long)protocol_status_snapshot.chassis_current_avg_ma,
                     (unsigned int)protocol_status_snapshot.power_limit_exceeded,
@@ -367,24 +475,17 @@ static void APP_Protocol_SendStatus(void)
 
 static void APP_Protocol_SendFireEvent(void)
 {
-  uint8_t prohibited;
+  uint8_t enabled;
   uint32_t sequence;
   char message[48];
   int length;
 
-  if ((APP_Power_GetFireEvent(&prohibited, &sequence) == 0U) ||
+  if ((APP_Match_GetShootPermission(&enabled, &sequence) == 0U) ||
       (sequence == protocol_last_fire_event_sequence))
   {
     return;
   }
-  if (prohibited != 0U)
-  {
-    length = snprintf(message, sizeof(message), "FIRE=OFF");
-  }
-  else
-  {
-    length = snprintf(message, sizeof(message), "FIRE=ON");
-  }
+  length = snprintf(message, sizeof(message), enabled != 0U ? "FIRE=ON" : "FIRE=OFF");
   if ((length > 0) && ((uint16_t)length < sizeof(message)) &&
       (APP_Protocol_Send(message) != 0U))
   {

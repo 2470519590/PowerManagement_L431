@@ -484,13 +484,18 @@ uint8_t APP_Power_ForceChassisState(PowerSwitchState_t state)
     }
   }
   APP_Power_SetChassisState(state);
-  if ((state == POWER_SWITCH_ON) &&
+  if (state == POWER_SWITCH_ON &&
       (power_monitor.power_cut_active == 0U) &&
       (power_monitor.current_overload_active == 0U) &&
       (power_monitor.adc_fault_active == 0U))
   {
     power_monitor.fire_prohibited = 0U;
     APP_Power_SetFirePermission(0U);
+  }
+  else if (state == POWER_SWITCH_OFF)
+  {
+    power_monitor.fire_prohibited = 1U;
+    APP_Power_SetFirePermission(1U);
   }
   return 1U;
 }

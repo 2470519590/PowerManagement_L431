@@ -39,13 +39,18 @@ C_SOURCES =  \
 Core/Src/main.c \
 Application/Power/app_power.c \
 Application/Protocol/app_protocol.c \
+Application/Referee/app_referee_can.c \
+Application/Referee/app_armor_enum.c \
+Application/Referee/app_match.c \
 Bsp/Power/bsp_power.c \
 Bsp/Power/bsp_adc.c \
 Bsp/Power/bsp_ina180.c \
 Bsp/bsp_time.c \
 Bsp/bsp_uart.c \
+Bsp/bsp_uart2.c \
 Bsp/bsp_critical.c \
 Bsp/bsp_watchdog.c \
+Bsp/bsp_can.c \
 Core/Src/adc.c \
 Core/Src/gpio.c \
 Core/Src/can.c \
@@ -138,6 +143,7 @@ C_INCLUDES =  \
 -ICore/Inc \
 -IApplication/Power \
 -IApplication/Protocol \
+-IApplication/Referee \
 -IBsp \
 -IBsp/Power \
 -IDrivers/STM32L4xx_HAL_Driver/Inc \

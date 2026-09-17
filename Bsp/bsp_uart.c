@@ -1,4 +1,5 @@
 #include "bsp_uart.h"
+#include "bsp_uart2.h"
 #include "usart.h"
 
 #define BSP_UART_TX_QUEUE_DEPTH 4U
@@ -87,6 +88,11 @@ uint8_t BSP_Uart_ReadByte(uint8_t *data)
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
+  if ((huart != NULL) && (huart->Instance == USART2))
+  {
+    BSP_Uart2_OnTxCplt(huart);
+    return;
+  }
   if ((huart != NULL) && (huart->Instance == LPUART1))
   {
     uart_tx_tail = (uint8_t)((uart_tx_tail + 1U) % BSP_UART_TX_QUEUE_DEPTH);
@@ -99,6 +105,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   uint8_t next_head;
 
+  if ((huart != NULL) && (huart->Instance == USART2))
+  {
+    BSP_Uart2_OnRxCplt(huart);
+    return;
+  }
   if ((huart == NULL) || (huart->Instance != LPUART1))
   {
     return;
@@ -115,6 +126,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
+  if ((huart != NULL) && (huart->Instance == USART2))
+  {
+    BSP_Uart2_OnError(huart);
+    return;
+  }
   if ((huart != NULL) && (huart->Instance == LPUART1))
   {
     (void)HAL_UART_Receive_IT(&hlpuart1, &uart_rx_byte, 1U);

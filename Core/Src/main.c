@@ -24,6 +24,8 @@
 #include "gpio.h"
 #include "app_power.h"
 #include "app_protocol.h"
+#include "app_referee_can.h"
+#include "app_match.h"
 #include "bsp_watchdog.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -52,7 +54,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -75,12 +76,15 @@ int main(void)
   MX_GPIO_Init();
   MX_CAN1_Init();
   MX_LPUART1_UART_Init();
+  MX_USART2_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
   (void)BSP_Watchdog_Init();
   APP_Power_Init(BSP_Watchdog_WasReset());
   APP_Protocol_Init();
+  APP_RefereeCan_Init();
+  APP_Match_Init();
 
   /* USER CODE END 2 */
 
@@ -90,6 +94,8 @@ int main(void)
   {
     /* USER CODE END WHILE */
     APP_Protocol_Task();
+    APP_RefereeCan_Task();
+    APP_Match_Task();
     BSP_Watchdog_Feed();
 
     /* USER CODE BEGIN 3 */

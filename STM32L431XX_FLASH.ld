@@ -182,6 +182,15 @@ SECTIONS
     __bss_end__ = _ebss;
   } >RAM
 
+  /* 死前追踪段：NOLOAD，启动代码不清零，跨复位保留（插 SWD 导致的复位也不丢） */
+  .noinit (NOLOAD) :
+  {
+    . = ALIGN(4);
+    KEEP(*(.noinit))
+    KEEP(*(.noinit*))
+    . = ALIGN(4);
+  } >RAM
+
   /* User_heap_stack section, used to check that there is enough RAM left */
   ._user_heap_stack :
   {
