@@ -3,6 +3,9 @@
 
 #define APP_ARMOR_ENUM_FRAGMENT_COUNT 4u
 #define APP_ARMOR_ENUM_FRAGMENT_MASK 0x0Fu
+/* Armor boards bring up their CAN receive bridge after their local startup
+ * work.  Do not let the one and only first 0x120 be lost in that window. */
+#define APP_ARMOR_ENUM_INITIAL_START_DELAY_MS 1000u
 /* 收集窗口必须覆盖装甲板侧 4 s 的枚举生命周期，否则 L431 会在装甲板
  * 自己完成重试前再次发送 0x120，反复清除在线节点的枚举状态。 */
 #define APP_ARMOR_ENUM_COLLECT_TIMEOUT_MS 4500u
@@ -16,6 +19,7 @@ APP_ArmorEnumDiag_t armor_enum_diag;
 static uint32_t s_deadline_ms;
 static uint32_t s_restart_due_ms;
 static uint32_t s_start_retry_due_ms;
+static uint32_t s_initial_start_due_ms;
 static uint8_t s_have_assigned_nodes;
 
 static uint32_t ArmorEnum_Fnv1a(const uint8_t *data, uint8_t len)
@@ -127,7 +131,11 @@ void APP_ArmorEnum_Init(uint32_t now)
 {
   memset(&armor_enum_diag, 0, sizeof(armor_enum_diag));
   s_have_assigned_nodes = 0u;
-  ArmorEnum_StartRound(now);
+  s_deadline_ms = 0u;
+  s_restart_due_ms = 0u;
+  s_start_retry_due_ms = 0u;
+  armor_enum_diag.state = APP_ARMOR_ENUM_COLLECT;
+  s_initial_start_due_ms = now + APP_ARMOR_ENUM_INITIAL_START_DELAY_MS;
 }
 
 void APP_ArmorEnum_ForceRestart(uint32_t now)
@@ -136,6 +144,7 @@ void APP_ArmorEnum_ForceRestart(uint32_t now)
    * Begin a fresh session immediately so an unassigned board can rejoin. */
   s_restart_due_ms = 0u;
   s_start_retry_due_ms = 0u;
+  s_initial_start_due_ms = 0u;
   ArmorEnum_StartRound(now);
 }
 
@@ -215,6 +224,12 @@ uint8_t APP_ArmorEnum_OnFrame(const BSP_CanFrame_t *frame, uint32_t now)
 
 void APP_ArmorEnum_Task(uint32_t now)
 {
+  if (s_initial_start_due_ms != 0u && (int32_t)(now - s_initial_start_due_ms) >= 0)
+  {
+    s_initial_start_due_ms = 0u;
+    ArmorEnum_StartRound(now);
+    return;
+  }
   if (s_start_retry_due_ms != 0u && (int32_t)(now - s_start_retry_due_ms) >= 0)
   {
     s_start_retry_due_ms = 0u;

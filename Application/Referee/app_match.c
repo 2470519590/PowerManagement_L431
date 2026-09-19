@@ -52,7 +52,11 @@
 #define MATCH_EVENT_ACK_DEAD1 0x3EU
 #define MATCH_EVENT_ACK_REVIVE0 0xE4U
 #define MATCH_EVENT_ACK_REVIVE1 0x4EU
-#define MATCH_HP_MAX 300U
+/* The controller can be exercised without a server.  It therefore boots in
+ * an active preparation round at 200 HP.  A server GAME_START atomically
+ * promotes that round to the official 300 HP round. */
+#define MATCH_HP_PREPARE_MAX 200U
+#define MATCH_HP_MATCH_MAX 300U
 #define MATCH_HIT_DAMAGE 20U
 #define MATCH_YELLOW_DAMAGE 50U
 #define MATCH_YELLOW_FORFEIT_COUNT 3U
@@ -77,6 +81,7 @@ typedef struct {
 typedef struct { uint8_t command; uint32_t transaction_id; uint8_t result; uint8_t valid; } MatchTransaction_t;
 
 static uint16_t match_hp;
+static uint16_t match_hp_limit;
 static uint8_t match_alive;
 static uint8_t match_started;
 static uint8_t match_yellow_cards;
@@ -189,7 +194,8 @@ static void Match_HandleCommand(const uint8_t *frame, uint8_t length, uint32_t n
     match_yellow_cards = 0U;
     match_forfeited = 0U;
     match_revive_due_ms = 0U;
-    match_hp = MATCH_HP_MAX;
+    match_hp_limit = MATCH_HP_MATCH_MAX;
+    match_hp = match_hp_limit;
     match_alive = 1U;
     match_combat_active = 0U;
     match_last_shot_count = referee_can_monitor.shot_count;
@@ -200,7 +206,7 @@ static void Match_HandleCommand(const uint8_t *frame, uint8_t length, uint32_t n
   else if (command == MATCH_CMD_HP0)
   {
     uint16_t hp = Match_ReadLe16(&frame[6]);
-    if (length != 9U || hp > MATCH_HP_MAX) result = MATCH_RESULT_DENIED;
+    if (length != 9U || hp > match_hp_limit) result = MATCH_RESULT_DENIED;
     else if (hp == 0U) Match_SetAlive(0U, now);
     else { match_hp = hp; if (match_alive == 0U) Match_SetAlive(1U, now); }
   }
@@ -399,7 +405,24 @@ static void Match_SendStatus(uint32_t now)
 void APP_Match_Init(void)
 {
   uint8_t i;
-  match_hp = 0U; match_alive = 0U; match_started = 0U; match_shoot_enabled = 0U; match_shoot_permission_sequence = 1U; match_revive_due_ms = 0U; match_last_status_ms = 0U; match_status_sequence = 0U; match_event_sequence = 0U; match_event_head = 0U; match_event_tail = 0U; match_rx_length = 0U;
+  /* Default to a fully functional preparation round.  This keeps real
+   * armor-hit, death, revival and shoot-permission paths testable while the
+   * match server is absent; GAME_START below replaces it with 300 HP. */
+  match_hp_limit = MATCH_HP_PREPARE_MAX;
+  match_hp = match_hp_limit;
+  match_alive = 1U;
+  match_started = 1U;
+  match_yellow_cards = 0U;
+  match_forfeited = 0U;
+  match_shoot_enabled = 0U;
+  match_shoot_permission_sequence = 1U;
+  match_revive_due_ms = 0U;
+  match_last_status_ms = 0U;
+  match_status_sequence = 0U;
+  match_event_sequence = 0U;
+  match_event_head = 0U;
+  match_event_tail = 0U;
+  match_rx_length = 0U;
   memset(match_transactions, 0, sizeof(match_transactions)); match_transaction_next = 0U;
   match_last_shot_count = referee_can_monitor.shot_count;
   match_last_shot_tick = 0U;
@@ -411,6 +434,7 @@ void APP_Match_Init(void)
            APP_ARMOR_ENUM_UID_BYTES);
   }
   BSP_Uart2_Init();
+  Match_UpdateShootPermission();
 }
 
 uint8_t APP_Match_GetShootPermission(uint8_t *enabled, uint32_t *sequence)
@@ -425,6 +449,6 @@ void APP_Match_Task(void)
 {
   uint32_t now = HAL_GetTick();
   BSP_Uart2_Task(); Match_ParseRx(now); Match_PollCanEvents(now);
-  if (match_started != 0U && match_forfeited == 0U && match_alive == 0U && match_revive_due_ms != 0U && Match_TimeReached(now, match_revive_due_ms) != 0U) { match_hp = MATCH_HP_MAX; Match_SetAlive(1U, now); }
+  if (match_started != 0U && match_forfeited == 0U && match_alive == 0U && match_revive_due_ms != 0U && Match_TimeReached(now, match_revive_due_ms) != 0U) { match_hp = match_hp_limit; Match_SetAlive(1U, now); }
   Match_SendPending(now); Match_SendStatus(now); BSP_Uart2_Task();
 }
