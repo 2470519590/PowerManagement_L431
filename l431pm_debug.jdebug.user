@@ -1,0 +1,29 @@
+
+
+GraphedExpression="(power_monitor).chassis_current_avg_ma", DisplayFormat=DISPLAY_FORMAT_DEC, Color=#e56a6f, Show=0
+GraphedExpression="(power_monitor).chassis_current_ma", DisplayFormat=DISPLAY_FORMAT_DEC, Color=#35792b
+GraphedExpression="power_monitor.chassis_current_ma", DisplayFormat=DISPLAY_FORMAT_DEC, Color=#769dda, Show=0
+OpenDocument="main.c", FilePath="E:/STM32_PROJ/l431_power_management/L431PM/Core/Src/main.c", Line=44
+OpenDocument="app_armor_enum.c", FilePath="E:/STM32_PROJ/l431_power_management/L431PM/Application/Referee/app_armor_enum.c", Line=229
+OpenToolbar="Debug", Floating=0, x=0, y=0
+OpenWindow="Source Files", DockArea=LEFT, x=0, y=1, w=849, h=346, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Break & Tracepoints", DockArea=LEFT, x=0, y=0, w=849, h=351, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VectorCatchIndexMask=254
+OpenWindow="Global Data", DockArea=RIGHT, x=0, y=0, w=953, h=263, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Watched Data 1", DockArea=LEFT, x=0, y=2, w=849, h=369, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Data Sampling", DockArea=RIGHT, x=0, y=1, w=953, h=777, TabPos=0, TopOfStack=0, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VisibleTab=0, UniformSampleSpacing=0
+OpenWindow="Timeline", DockArea=RIGHT, x=0, y=1, w=953, h=777, TabPos=1, TopOfStack=1, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=1, DataPaneShown=1, PowerPaneShown=0, CodePaneShown=0, PinCursor="Cursor Movable", TimePerDiv="1 s / Div", TimeStampFormat="Time", DataGraphDrawAsPoints=0, DataGraphLegendShown=1, DataGraphUniformSampleSpacing=0, DataGraphLegendPosition="451;0", DataGraphShowNamesAtCursor=0, PowerGraphDrawAsPoints=0, PowerGraphLegendShown=0, PowerGraphAvgFilterTime=Off, PowerGraphAvgFilterLen=Off, PowerGraphUniformSampleSpacing=0, PowerGraphLegendPosition="700;222", CodeGraphLegendShown=0, CodeGraphLegendPosition="635;0"
+OpenWindow="Console", DockArea=BOTTOM, x=0, y=0, w=2560, h=337, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+SmartViewPlugin="", Page="", Toolbar="Hidden", Window="SmartView 1"
+TableHeader="Data Sampling Table", SortCol="None", SortOrder="ASCENDING", VisibleCols=["Index";"Time";" (power_monitor).chassis_current_avg_ma";" (power_monitor).chassis_current_ma";" power_monitor.chassis_current_ma"], ColWidths=[100;100;100;100;527]
+TableHeader="Data Sampling Setup", SortCol="Min", SortOrder="ASCENDING", VisibleCols=["Expression";"Type";"Value";"Average";"Min";"Max";"# Changes";"Min. Change";"Max. Change"], ColWidths=[394;157;100;124;100;100;128;157;150]
+TableHeader="Global Data", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Location";"Size";"Type";"Scope"], ColWidths=[327;100;102;100;100;198]
+TableHeader="Vector Catches", SortCol="", SortOrder="ASCENDING", VisibleCols=["";"Vector Catch";"Description"], ColWidths=[50;300;500]
+TableHeader="Break & Tracepoints", SortCol="", SortOrder="ASCENDING", VisibleCols=["";"Type";"Location";"Extras"], ColWidths=[100;100;111;538]
+TableHeader="Source Files", SortCol="File", SortOrder="ASCENDING", VisibleCols=["File";"Status";"Size";"#Insts";"Path"], ColWidths=[353;146;118;146;1044]
+TableHeader="Power Sampling", SortCol="None", SortOrder="ASCENDING", VisibleCols=["Index";"Time";"Ch 0"], ColWidths=[100;100;100]
+TableHeader="Watched Data 1", SortCol="Expression", SortOrder="ASCENDING", VisibleCols=["Expression";"Value";"Location";"Refresh"], ColWidths=[452;153;277;100]
+TableHeader="RegisterSelectionDialog", SortCol="None", SortOrder="ASCENDING", VisibleCols=[], ColWidths=[]
+TableHeader="TargetExceptionDialog", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Address";"Description"], ColWidths=[200;196;191;850]
+WatchedExpression="(power_monitor).chassis_current_ma", Window=Watched Data 1
+WatchedExpression="(power_monitor).chassis_current_avg_ma", Window=Watched Data 1
+WatchedExpression="(power_monitor).current_limit_ma", Window=Watched Data 1
