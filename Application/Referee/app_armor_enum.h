@@ -21,7 +21,7 @@
 #define APP_ARMOR_BUSINESS_STRIDE 0x10u
 /* Per-node IDs use a stride of 0x10. Offset 0xA is the reliable HIT ACK;
  * keep this limit in sync with the armor-board firmware. */
-#define APP_ARMOR_BUSINESS_OFFSET_MAX 0xAu
+#define APP_ARMOR_BUSINESS_OFFSET_MAX 0xCu
 
 typedef enum { APP_ARMOR_ENUM_COLLECT = 0, APP_ARMOR_ENUM_ASSIGN, APP_ARMOR_ENUM_ASSIGN_RETRY, APP_ARMOR_ENUM_WAIT_ACK, APP_ARMOR_ENUM_READY } APP_ArmorEnumState_t;
 

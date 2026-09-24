@@ -37,6 +37,7 @@ static void APP_Protocol_SendRaw(void);
 static void APP_Protocol_SendFireEvent(void);
 static void APP_Protocol_SendArmorList(void);
 static void APP_Protocol_PollArmorIdentity(void);
+static void APP_Protocol_PollArmorThreshold(void);
 
 void APP_Protocol_Init(void)
 {
@@ -91,6 +92,7 @@ void APP_Protocol_Task(void)
 
   APP_Protocol_SendFireEvent();
   APP_Protocol_PollArmorIdentity();
+  APP_Protocol_PollArmorThreshold();
   APP_Protocol_SendStatus();
   APP_Protocol_TxTask();
   BSP_Uart_Task();
@@ -278,6 +280,44 @@ static void APP_Protocol_HandleLine(char *line)
     return;
   }
 
+  if (strncmp(line, "ARMOR=THR=", 10U) == 0)
+  {
+    APP_ArmorThresholdStatus_t status;
+    char message[80];
+    char *comma = strchr(&line[10], ',');
+    uint32_t node = 0U;
+    uint32_t threshold = 0U;
+    if (comma == NULL)
+    {
+      (void)APP_Protocol_Send("ARMOR,THR,ERR=FORMAT");
+      return;
+    }
+    *comma = '\0';
+    if (APP_Protocol_ParseUnsigned(&line[10], &node) == 0U ||
+        APP_Protocol_ParseUnsigned(comma + 1, &threshold) == 0U ||
+        node > 255U)
+    {
+      (void)APP_Protocol_Send("ARMOR,THR,ERR=INVALID");
+      return;
+    }
+    status = APP_RefereeCan_RequestArmorHitThreshold((uint8_t)node, threshold);
+    if (status == APP_ARMOR_THRESHOLD_PENDING)
+    {
+      (void)snprintf(message, sizeof(message), "ARMOR,THR,REQ=%lu,VALUE=%lu,PENDING", (unsigned long)node, (unsigned long)threshold);
+      (void)APP_Protocol_Send(message);
+    }
+    else if (status == APP_ARMOR_THRESHOLD_ENUM_NOT_READY) (void)APP_Protocol_Send("ARMOR,THR,ERR=ENUM_NOT_READY");
+    else if (status == APP_ARMOR_THRESHOLD_BUSY) (void)APP_Protocol_Send("ARMOR,THR,ERR=BUSY");
+    else if (status == APP_ARMOR_THRESHOLD_TX_FAILED) (void)APP_Protocol_Send("ARMOR,THR,ERR=CAN_TX");
+    else if (status == APP_ARMOR_THRESHOLD_INVALID_NODE) (void)APP_Protocol_Send("ARMOR,THR,ERR=INVALID_NODE");
+    else (void)APP_Protocol_Send("ARMOR,THR,ERR=RANGE");
+    if (status != APP_ARMOR_THRESHOLD_PENDING)
+    {
+      APP_RefereeCan_ClearArmorThresholdRequest();
+    }
+    return;
+  }
+
   if (strcmp(line, "PING") == 0)
   {
     (void)APP_Protocol_Send("PONG");
@@ -425,6 +465,36 @@ static void APP_Protocol_PollArmorIdentity(void)
                       (unsigned int)query.requested_node_id);
   }
   if (length > 0 && (uint16_t)length < sizeof(message)) { (void)APP_Protocol_Send(message); }
+}
+
+static void APP_Protocol_PollArmorThreshold(void)
+{
+  APP_ArmorThresholdRequest_t request;
+  char message[96];
+  int length;
+  APP_RefereeCan_GetArmorThresholdRequest(&request);
+  if (request.status == APP_ARMOR_THRESHOLD_IDLE || request.status == APP_ARMOR_THRESHOLD_PENDING) return;
+  if (request.status == APP_ARMOR_THRESHOLD_OK)
+  {
+    length = snprintf(message, sizeof(message), "ARMOR,THR,REQ=%u,VALUE=%lu,APPLIED=%lu,OK", (unsigned int)request.requested_node_id, (unsigned long)request.requested_value, (unsigned long)request.applied_value);
+  }
+  else if (request.status == APP_ARMOR_THRESHOLD_TIMEOUT)
+  {
+    length = snprintf(message, sizeof(message), "ARMOR,THR,REQ=%u,TIMEOUT", (unsigned int)request.requested_node_id);
+  }
+  else if (request.status == APP_ARMOR_THRESHOLD_REJECTED)
+  {
+    length = snprintf(message, sizeof(message), "ARMOR,THR,REQ=%u,REJECTED", (unsigned int)request.requested_node_id);
+  }
+  else
+  {
+    return;
+  }
+  if (length > 0 && (uint16_t)length < sizeof(message))
+  {
+    (void)APP_Protocol_Send(message);
+  }
+  APP_RefereeCan_ClearArmorThresholdRequest();
 }
 
 static void APP_Protocol_SendStatus(void)

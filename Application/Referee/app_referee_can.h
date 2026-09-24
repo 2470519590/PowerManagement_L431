@@ -41,6 +41,36 @@ typedef enum
   APP_ARMOR_ID_QUERY_MISMATCH
 } APP_ArmorIdQueryStatus_t;
 
+#define APP_ARMOR_OFFSET_PARAM_SET 0x0Bu
+#define APP_ARMOR_OFFSET_PARAM_ACK 0x0Cu
+#define APP_ARMOR_PARAM_P04_THR_HIT 0x04u
+#define APP_ARMOR_HIT_THRESHOLD_MIN 1000u
+#define APP_ARMOR_HIT_THRESHOLD_MAX 67108864u
+
+typedef enum
+{
+  APP_ARMOR_THRESHOLD_IDLE = 0,
+  APP_ARMOR_THRESHOLD_PENDING,
+  APP_ARMOR_THRESHOLD_OK,
+  APP_ARMOR_THRESHOLD_TIMEOUT,
+  APP_ARMOR_THRESHOLD_INVALID_NODE,
+  APP_ARMOR_THRESHOLD_ENUM_NOT_READY,
+  APP_ARMOR_THRESHOLD_BUSY,
+  APP_ARMOR_THRESHOLD_TX_FAILED,
+  APP_ARMOR_THRESHOLD_REJECTED
+} APP_ArmorThresholdStatus_t;
+
+typedef struct
+{
+  APP_ArmorThresholdStatus_t status;
+  uint8_t requested_node_id;
+  uint8_t sequence;
+  uint32_t requested_value;
+  uint32_t applied_value;
+  uint8_t result;
+  uint32_t deadline_ms;
+} APP_ArmorThresholdRequest_t;
+
 typedef struct
 {
   APP_ArmorIdQueryStatus_t status;
@@ -104,11 +134,23 @@ typedef struct
 
 extern APP_RefereeCanMonitor_t referee_can_monitor;
 
+/* Host-controlled maintenance gate used while armor boards are upgraded. */
+#define APP_REFEREE_CAN_MAINT_CMD_ID 0x110U
+#define APP_REFEREE_CAN_MAINT_ACK_ID 0x111U
+#define APP_REFEREE_CAN_MAINT_MAGIC 0xA5U
+#define APP_REFEREE_CAN_MAINT_ACK_MAGIC 0x5AU
+#define APP_REFEREE_CAN_MAINT_ENTER 1U
+#define APP_REFEREE_CAN_MAINT_EXIT 0U
+
 void APP_RefereeCan_Init(void);
 void APP_RefereeCan_Task(void);
+uint8_t APP_RefereeCan_IsMaintenanceSilent(void);
 /* Idempotent command. The CAN task retries until the gun returns 0x234. */
 void APP_RefereeCan_RequestGunHeat(uint8_t heat);
 APP_ArmorIdQueryStatus_t APP_RefereeCan_RequestArmorIdentity(uint8_t node_id);
 void APP_RefereeCan_GetArmorIdentityQuery(APP_ArmorIdQuery_t *query);
+APP_ArmorThresholdStatus_t APP_RefereeCan_RequestArmorHitThreshold(uint8_t node_id, uint32_t threshold);
+void APP_RefereeCan_GetArmorThresholdRequest(APP_ArmorThresholdRequest_t *request);
+void APP_RefereeCan_ClearArmorThresholdRequest(void);
 
 #endif /* APP_REFEREE_CAN_H */
