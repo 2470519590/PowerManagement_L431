@@ -410,7 +410,17 @@ static void APP_Protocol_HandleLine(char *line)
 static void APP_Protocol_SendArmorList(void)
 {
   uint8_t i;
-  for (i = 0U; i < APP_ARMOR_ENUM_REQUIRED_NODE_COUNT; i++)
+  uint8_t online = 0U;
+  char summary[96];
+  for (i = 0U; i < APP_ARMOR_ENUM_NODE_COUNT; i++)
+    if (APP_ArmorEnum_IsNodeAssigned((uint8_t)(i + 1U)) && referee_can_monitor.armor_nodes[i].online != 0U) online++;
+  (void)snprintf(summary, sizeof(summary),
+                 "ARMOR,COUNT,CANDIDATES=%u,ASSIGNED=%u,ONLINE=%u,READY=%u",
+                 (unsigned int)armor_enum_diag.collected_count,
+                 (unsigned int)APP_ArmorEnum_ActiveNodeCount(),
+                 (unsigned int)online, (unsigned int)APP_ArmorEnum_IsReady());
+  (void)APP_Protocol_Send(summary);
+  for (i = 0U; i < APP_ARMOR_ENUM_NODE_COUNT; i++)
   {
     const APP_ArmorEnumNode_t *e = &armor_enum_diag.nodes[i];
     const APP_ArmorNodeMonitor_t *m = &referee_can_monitor.armor_nodes[i];

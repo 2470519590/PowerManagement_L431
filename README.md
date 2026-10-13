@@ -65,7 +65,7 @@ P(W) = I(mA) × 11980 / 1000000
 
 MCU 复位或失电时，硬件上拉使底盘电源关闭。固件启用独立 IWDG，主循环异常时复位。
 
-CAN 已启用：正式固件启动时先为四块装甲板自动分配 NodeID，完成后每 `100 ms` 查询枪管，并以 `25 ms` 轮询间隔查询一块装甲板（每块均为 10 Hz）。三类节点统一为 `500 kbps / 87.5%` 采样点。若任何已分配装甲板持续离线超过恢复宽限期，电管自动重启枚举；同一 UID 的历史受击去重状态会保留，装甲板重启帧或新 UID 才会清除该去重状态。单板或部分装甲板联调时，可仅在测试固件中把 `Application/Referee/app_armor_enum.h` 的 `APP_ARMOR_ENUM_REQUIRED_NODE_COUNT` 编译宏设为 `1~3`；默认值为 `4`，正式比赛版本不得降低。该值同时控制枚举完成门槛和业务状态查询范围。调试时可直接查看 `CAN_RX_COUNT`、`CAN_TX_COUNT`、`CAN_RX_DROP_COUNT`、`CAN_ERROR_COUNT`、`CAN_BUS_OFF_COUNT`、`armor_enum_diag` 与 `referee_can_monitor.armor_nodes`。
+CAN 已启用：支持 `0~4` 块装甲板自动检测和运行中接入。完整 UID 到达后逐板分配并立即轮询，不等待整组结束；已有 UID 保留 NodeID，空槽可能不连续。收集窗口 `2500 ms`，不足四块时结束后等待 `5000 ms` 再扫描，满四块停止扫描，通信超时后继续发现。每 `100 ms` 查询枪管，每 `25 ms` 查询下一有效装甲槽；各板通信 `1000 ms` 超时独立离线，枚举不统一清零健康位。现有装甲板收到广播会清除 NodeID，不能保证物理通信无间隙。三类节点为 `500 kbps / 87.5%` 采样点。同 UID 受击去重历史保留，重启帧或新 UID 清除去重。`ARMOR=LIST` 返回候选、分配、在线数量和逐板信息；`armor_enum_diag.active_count` 是有效槽数，不是最大 NodeID。
 
 ## 串口和工具
 

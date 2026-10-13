@@ -381,16 +381,16 @@ static void Match_SendStatus(uint32_t now)
   frame[8] = (uint8_t)snapshot.chassis_power_avg_w; frame[9] = (uint8_t)(snapshot.chassis_power_avg_w > 65535U ? 0xFFU : snapshot.chassis_power_avg_w >> 8U);
   if (snapshot.chassis_power_avg_w > 65535U) frame[8] = 0xFFU;
   if (referee_can_monitor.gun_online != 0U) device_online |= MATCH_DEVICE_ONLINE_GUN;
-  /* Before all four assignments ACK, none of the nodes can yet report hits
-   * through a stable slot, so all armor bits intentionally remain offline. */
-  if (APP_ArmorEnum_IsReady() != 0U)
+  /* Discovery does not invalidate unrelated slots. Report per-node health. */
+  if (APP_ArmorEnum_ActiveNodeCount() != 0U)
   {
     for (i = 0U; i < APP_ARMOR_ENUM_NODE_COUNT; i++)
     {
       /* The new armor firmware only emits a referee hit in NORMAL/HIT.
        * A responding board in BOOT, FAULT, COMM_LOST or ID setup/conflict
        * therefore remains visible to diagnostics but is offline to match. */
-      if (referee_can_monitor.armor_nodes[i].online != 0U &&
+      if (APP_ArmorEnum_IsNodeAssigned((uint8_t)(i + 1U)) &&
+          referee_can_monitor.armor_nodes[i].online != 0U &&
           (referee_can_monitor.armor_nodes[i].state == MATCH_ARMOR_STATE_NORMAL ||
            referee_can_monitor.armor_nodes[i].state == MATCH_ARMOR_STATE_HIT))
       {

@@ -6,7 +6,7 @@
 
 ## 当前生效：装甲板自动 NodeID
 
-四块装甲板使用同一 bin。电管按完整 STM32 UID 的字典序固定分配 NodeID 1~4；未分配节点不发送或处理业务帧。正式固件要求 4 块全部到齐；测试固件可通过 `APP_ARMOR_ENUM_REQUIRED_NODE_COUNT` 编译宏设为 `1~3`，用于部分装甲板联调。
+最多四块装甲板使用同一 bin。电管逐板发现完整 UID 后立即分配，支持 0~4 块；已知 UID 保持原 NodeID，新 UID 使用空槽或离线槽。槽位可能不连续，不能用最大 NodeID 代替实际数量。未分配节点不发送或处理业务帧。
 
 | ID | 报文 | DLC | 关键字段 |
 |---:|---|---:|---|
@@ -15,9 +15,9 @@
 | `0x122` | `NODE_ASSIGN` | 8 | `session`、NodeID、token、UID CRC16-CCITT |
 | `0x123` | `NODE_ACK` | 8 | 分配字段回显，Byte7=`0xA5` |
 
-`ENUM_ANNOUNCE` 的 Byte0=`session`、Byte1=`fragment`、Byte2~4=UID 三字节、Byte5~7=token。装甲板收到枚举后延迟 `5 + hash % 50` ms 上报，失败时退避重发；电管收齐 4 个完整 UID 后逐板分配并等待 ACK。缺板、多板、校验失败或 ACK 超时将重新枚举。
+`ENUM_ANNOUNCE` 的 Byte0=`session`、Byte1=`fragment`、Byte2~4=UID 三字节、Byte5~7=token。装甲板收到枚举后延迟 `5 + hash % 100` ms 上报，失败时退避重发。电管收齐单板完整 UID 并校验后立即发分配，不等整组收集结束；分配 ACK 后立刻恢复该槽轮询，收集窗口为 2500 ms。单板分配最多尝试三次，失败不撤销其他槽位。数量不足四块时，轮次结束后等待 5000 ms 再扫描；满四块时停止扫描，节点通信超过 1000 ms 超时后再次启用扫描。新接入板在后续扫描自动加入，无需重启。现有装甲板收到广播会清除 NodeID，因此无法承诺物理通信完全不中断；逐板尽快恢复，健康位不因枚举状态被统一清零，也不延长真实通信超时。
 
-业务 ID：`0x130 + (NodeID - 1) × 0x10 + offset`。offset 为 `0=reset`、`1=fault`、`2=init`、`3=hit`、`4=status query`、`5=status reply`、`6=LED control`、`7=LED ACK`、`8=NodeID query`、`9=NodeID reply`、`10=hit ACK`；Node 1 为 `0x130~0x13A`，Node 4 为 `0x160~0x16A`。电管在全部 ACK 后每 25 ms 查询下一个节点，因此每块板查询频率为 10 Hz。
+业务 ID：`0x130 + (NodeID - 1) × 0x10 + offset`。offset 为 `0=reset`、`1=fault`、`2=init`、`3=hit`、`4=status query`、`5=status reply`、`6=LED control`、`7=LED ACK`、`8=NodeID query`、`9=NodeID reply`、`10=hit ACK`；Node 1 为 `0x130~0x13A`，Node 4 为 `0x160~0x16A`。每 25 ms 查询下一个有效槽，跳过空槽；单板查询周期为 N×25 ms。`ARMOR=LIST` 首行返回本轮候选数 CANDIDATES、有效分配槽数 ASSIGNED、通信在线数 ONLINE 和轮次是否结束 READY；READY=0 不表示已有槽不可用。候选数可包含不完整分片，ONLINE 不等同于比赛受击可用数。
 
 ## 历史固定 ID 协议（不再生效）
 

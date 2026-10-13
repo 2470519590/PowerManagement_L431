@@ -33,7 +33,6 @@
  * 300 ms threshold as its LED communication-lost indicator: that used to
  * trigger a full re-enumeration which itself stopped every board's polling. */
 #define APP_REFEREE_CAN_NODE_OFFLINE_MS 1000u
-#define APP_REFEREE_CAN_ARMOR_REENUM_GRACE_MS 1000u
 #define APP_REFEREE_CAN_GUN_CONTROL_RETRY_MS 100u
 #define APP_REFEREE_CAN_GUN_CONTROL_BACKOFF_MS 1000u
 
@@ -45,8 +44,6 @@ static uint8_t referee_armor_query_node;
 static APP_ArmorIdQuery_t referee_armor_id_query;
 static APP_ArmorThresholdRequest_t referee_armor_threshold_request;
 static uint8_t referee_armor_threshold_sequence;
-static uint8_t referee_armor_enum_was_ready;
-static uint32_t referee_armor_enum_ready_since_ms;
 typedef struct
 {
   uint8_t pending;
@@ -75,10 +72,7 @@ static void APP_RefereeCan_SyncArmorNodes(void)
   uint8_t i;
   uint8_t j;
   referee_can_monitor.armor_enum_ready = APP_ArmorEnum_IsReady();
-  /* Keep the old monitor while a new round is collecting. It preserves HIT
-   * de-duplication for boards that did not reset; the new mapping is adopted
-   * atomically only once all four assignment ACKs have arrived. */
-  if (referee_can_monitor.armor_enum_ready == 0U) return;
+  /* Publish each acknowledged slot immediately, preserving history by UID. */
   for (i = 0u; i < APP_ARMOR_ENUM_NODE_COUNT; i++)
   {
     for (j = 0u; j < APP_ARMOR_ENUM_NODE_COUNT; j++)
@@ -98,6 +92,7 @@ static void APP_RefereeCan_SyncArmorNodes(void)
 }
 
 static void APP_RefereeCan_UpdateOnlineState(uint32_t now)
+    if (armor_enum_diag.nodes[i].node_id == 0U) continue;
 {
   uint8_t i;
   if (referee_can_monitor.gun_online != 0U &&
@@ -105,7 +100,6 @@ static void APP_RefereeCan_UpdateOnlineState(uint32_t now)
   {
     referee_can_monitor.gun_online = 0U;
   }
-  if (APP_ArmorEnum_IsReady() == 0U) return;
   for (i = 0U; i < APP_ARMOR_ENUM_NODE_COUNT; i++)
   {
     APP_ArmorNodeMonitor_t *m = &referee_can_monitor.armor_nodes[i];
@@ -115,38 +109,6 @@ static void APP_RefereeCan_UpdateOnlineState(uint32_t now)
       m->online = 0U;
     }
   }
-}
-
-static uint8_t APP_RefereeCan_ShouldRestartArmorEnumeration(uint32_t now)
-{
-  uint8_t i;
-  if (APP_ArmorEnum_IsReady() == 0U)
-  {
-    referee_armor_enum_was_ready = 0U;
-    return 0U;
-  }
-  if (referee_armor_enum_was_ready == 0U)
-  {
-    referee_armor_enum_was_ready = 1U;
-    referee_armor_enum_ready_since_ms = now;
-    return 0U;
-  }
-  if ((uint32_t)(now - referee_armor_enum_ready_since_ms) < APP_REFEREE_CAN_ARMOR_REENUM_GRACE_MS)
-  {
-    return 0U;
-  }
-  for (i = 0U; i < APP_ARMOR_ENUM_NODE_COUNT; i++)
-  {
-    if (referee_can_monitor.armor_nodes[i].node_id != 0U &&
-        referee_can_monitor.armor_nodes[i].online == 0U)
-    {
-      referee_can_monitor.armor_reenum_request_count++;
-      referee_can_monitor.armor_reenum_last_ms = now;
-      referee_can_monitor.armor_reenum_last_offline_node = (uint8_t)(i + 1U);
-      return 1U;
-    }
-  }
-  return 0U;
 }
 
 static void APP_RefereeCan_ProcessGunHeatSync(uint32_t now)
@@ -162,6 +124,7 @@ static void APP_RefereeCan_ProcessGunHeatSync(uint32_t now)
   data[1] = referee_gun_heat_sync.heat;
   (void)BSP_Can_Send(APP_REFEREE_CAN_GUN_HEAT_COMMAND_ID, data, sizeof(data));
   if (referee_gun_heat_sync.attempts < 255U) referee_gun_heat_sync.attempts++;
+      APP_ArmorEnum_MarkOffline((uint8_t)(i + 1U));
   retry_ms = (referee_gun_heat_sync.attempts < 3U) ?
              APP_REFEREE_CAN_GUN_CONTROL_RETRY_MS : APP_REFEREE_CAN_GUN_CONTROL_BACKOFF_MS;
   referee_gun_heat_sync.next_attempt_ms = now + retry_ms;
@@ -179,6 +142,9 @@ static void APP_RefereeCan_HandleMaintenance(const BSP_CanFrame_t *frame)
   reply[2] = enter;
   reply[3] = 0U;
   /* Enter takes effect before the ACK, so no periodic CAN frame can be
+  if (frame->standard_id >= APP_ARMOR_BUSINESS_BASE_ID &&
+      frame->standard_id < APP_ARMOR_BUSINESS_BASE_ID + APP_ARMOR_ENUM_NODE_COUNT * APP_ARMOR_BUSINESS_STRIDE &&
+      !APP_ArmorEnum_IsNodeAssigned((uint8_t)((frame->standard_id - APP_ARMOR_BUSINESS_BASE_ID) / APP_ARMOR_BUSINESS_STRIDE + 1U))) return 0U;
      queued after the host receives confirmation. Exit is acknowledged while
      still silent, then normal scheduling resumes on the next task pass. */
   if (enter != 0U) referee_maintenance_silent = 1U;
@@ -190,9 +156,7 @@ static uint8_t APP_RefereeCan_HandleArmorFrame(const BSP_CanFrame_t *frame, uint
 {
   int8_t node;
   APP_ArmorNodeMonitor_t *m;
-  /* Keep the previous NodeID mapping usable while a replacement enumeration
-   * is collecting. This lets status replies refresh liveness without adopting
-   * a partially collected mapping. */
+  /* Accept business frames only from the committed current mapping. */
   if (APP_ArmorEnum_ActiveNodeCount() == 0U) return 0U;
   node = APP_ArmorEnum_NodeFromBusinessId(frame->standard_id, APP_ARMOR_OFFSET_RESET_CAUSE);
   if (node >= 1 && frame->dlc == 1U) { m = &referee_can_monitor.armor_nodes[(uint8_t)(node - 1)]; m->reset_cause = frame->data[0]; m->hit_sequence_valid = 0U; m->online = 1U; m->last_rx_tick = rx_tick; return 1U; }
@@ -277,7 +241,21 @@ static void APP_RefereeCan_HandleFrame(const BSP_CanFrame_t *frame, uint32_t rx_
     APP_RefereeCan_HandleMaintenance(frame);
     return;
   }
-  if (APP_ArmorEnum_OnFrame(frame, referee_elapsed_ms) != 0U) return;
+  if (APP_ArmorEnum_OnFrame(frame, referee_elapsed_ms) != 0U)
+  {
+    APP_RefereeCan_SyncArmorNodes();
+    if (frame->standard_id == APP_ARMOR_ENUM_ID_ACK && frame->dlc == 8U &&
+        frame->data[0] == armor_enum_diag.session &&
+        frame->data[7] == 0xA5U && APP_ArmorEnum_IsNodeAssigned(frame->data[1]) &&
+        APP_RefereeCan_ReadLe24(&frame->data[2]) == armor_enum_diag.nodes[frame->data[1] - 1U].token &&
+        APP_RefereeCan_ReadLe16(&frame->data[5]) == armor_enum_diag.nodes[frame->data[1] - 1U].uid_crc16)
+    {
+      APP_ArmorNodeMonitor_t *m = &referee_can_monitor.armor_nodes[frame->data[1] - 1U];
+      m->online = 1U;
+      m->last_rx_tick = rx_tick;
+    }
+    return;
+  }
   if (APP_RefereeCan_HandleArmorFrame(frame, rx_tick) != 0U) { referee_can_monitor.received_frame_count++; return; }
   switch (frame->standard_id)
   {
@@ -295,7 +273,7 @@ static void APP_RefereeCan_HandleFrame(const BSP_CanFrame_t *frame, uint32_t rx_
 
 void APP_RefereeCan_Init(void)
 {
-  referee_can_monitor = (APP_RefereeCanMonitor_t){0}; referee_armor_id_query = (APP_ArmorIdQuery_t){0}; referee_armor_threshold_request = (APP_ArmorThresholdRequest_t){0}; referee_armor_threshold_sequence = 0U; referee_gun_heat_sync = (APP_GunHeatSync_t){0}; referee_maintenance_silent = 0U; referee_elapsed_ms = 0U; referee_next_gun_query_ms = APP_REFEREE_CAN_GUN_QUERY_FIRST_MS; referee_last_armor_query_ms = 0U; referee_armor_query_node = 1U; referee_armor_enum_was_ready = 0U; referee_armor_enum_ready_since_ms = 0U;
+  referee_can_monitor = (APP_RefereeCanMonitor_t){0}; referee_armor_id_query = (APP_ArmorIdQuery_t){0}; referee_armor_threshold_request = (APP_ArmorThresholdRequest_t){0}; referee_armor_threshold_sequence = 0U; referee_gun_heat_sync = (APP_GunHeatSync_t){0}; referee_maintenance_silent = 0U; referee_elapsed_ms = 0U; referee_next_gun_query_ms = APP_REFEREE_CAN_GUN_QUERY_FIRST_MS; referee_last_armor_query_ms = 0U; referee_armor_query_node = 1U;
   (void)BSP_Can_Init(); (void)BSP_Time_Register1msCallback(APP_RefereeCan_Tick1ms); APP_ArmorEnum_Init(0U);
 }
 
@@ -308,13 +286,6 @@ void APP_RefereeCan_Task(void)
   if (referee_maintenance_silent != 0U) return;
   APP_ArmorEnum_Task(now); APP_RefereeCan_SyncArmorNodes();
   APP_RefereeCan_UpdateOnlineState(now);
-  if (APP_RefereeCan_ShouldRestartArmorEnumeration(now) != 0U)
-  {
-    APP_ArmorEnum_ForceRestart(now);
-    referee_armor_id_query = (APP_ArmorIdQuery_t){0};
-    referee_armor_query_node = 1U;
-    APP_RefereeCan_SyncArmorNodes();
-  }
   if (referee_armor_id_query.status == APP_ARMOR_ID_QUERY_PENDING &&
       (int32_t)(now - referee_armor_id_query.deadline_ms) >= 0)
   {
@@ -332,9 +303,15 @@ void APP_RefereeCan_Task(void)
   }
   if (APP_ArmorEnum_ActiveNodeCount() != 0U && (uint32_t)(now - referee_last_armor_query_ms) >= APP_REFEREE_CAN_ARMOR_QUERY_PERIOD_MS)
   {
-    uint16_t id; referee_last_armor_query_ms = now; id = APP_ArmorEnum_BusinessId(referee_armor_query_node, APP_ARMOR_OFFSET_STATUS_QUERY);
+    uint16_t id;
+    for (uint8_t searched = 0U; searched < APP_ARMOR_ENUM_NODE_COUNT; searched++)
+    {
+      if (APP_ArmorEnum_IsNodeAssigned(referee_armor_query_node)) break;
+      referee_armor_query_node = (uint8_t)(referee_armor_query_node % APP_ARMOR_ENUM_NODE_COUNT + 1U);
+    }
+    referee_last_armor_query_ms = now; id = APP_ArmorEnum_BusinessId(referee_armor_query_node, APP_ARMOR_OFFSET_STATUS_QUERY);
     if (BSP_Can_Send(id, NULL, 0U) != 0U) { referee_can_monitor.query_tx_count++; referee_can_monitor.armor_query_tx_count++; } else { referee_can_monitor.query_tx_error_count++; referee_can_monitor.armor_query_tx_error_count++; }
-    referee_armor_query_node++; if (referee_armor_query_node > APP_ArmorEnum_ActiveNodeCount()) referee_armor_query_node = 1U;
+    referee_armor_query_node++; if (referee_armor_query_node > APP_ARMOR_ENUM_NODE_COUNT) referee_armor_query_node = 1U;
   }
   APP_RefereeCan_ProcessGunHeatSync(now);
 }
@@ -355,7 +332,7 @@ void APP_RefereeCan_RequestGunHeat(uint8_t heat)
 APP_ArmorIdQueryStatus_t APP_RefereeCan_RequestArmorIdentity(uint8_t node_id)
 {
   uint16_t id;
-  if (node_id == 0U || node_id > APP_ARMOR_ENUM_REQUIRED_NODE_COUNT)
+  if (node_id == 0U || node_id > APP_ARMOR_ENUM_NODE_COUNT)
   {
     referee_armor_id_query.status = APP_ARMOR_ID_QUERY_INVALID_NODE;
     return referee_armor_id_query.status;
@@ -376,6 +353,11 @@ APP_ArmorIdQueryStatus_t APP_RefereeCan_RequestArmorIdentity(uint8_t node_id)
   if (id == 0U || BSP_Can_Send(id, NULL, 0U) == 0U)
   {
     referee_armor_id_query.status = APP_ARMOR_ID_QUERY_TX_FAILED;
+  if (!APP_ArmorEnum_IsNodeAssigned(node_id))
+  {
+    referee_armor_id_query.status = APP_ARMOR_ID_QUERY_INVALID_NODE;
+    return referee_armor_id_query.status;
+  }
     return referee_armor_id_query.status;
   }
   referee_armor_id_query.status = APP_ARMOR_ID_QUERY_PENDING;
@@ -392,7 +374,7 @@ APP_ArmorThresholdStatus_t APP_RefereeCan_RequestArmorHitThreshold(uint8_t node_
 {
   uint8_t data[8] = {0U};
   uint16_t id;
-  if (node_id == 0U || node_id > APP_ARMOR_ENUM_REQUIRED_NODE_COUNT)
+  if (node_id == 0U || node_id > APP_ARMOR_ENUM_NODE_COUNT)
   {
     referee_armor_threshold_request.status = APP_ARMOR_THRESHOLD_INVALID_NODE;
     return referee_armor_threshold_request.status;
@@ -427,6 +409,11 @@ APP_ArmorThresholdStatus_t APP_RefereeCan_RequestArmorHitThreshold(uint8_t node_
   referee_armor_threshold_request.requested_node_id = node_id;
   referee_armor_threshold_request.sequence = data[6];
   referee_armor_threshold_request.requested_value = threshold;
+  if (!APP_ArmorEnum_IsNodeAssigned(node_id))
+  {
+    referee_armor_threshold_request.status = APP_ARMOR_THRESHOLD_INVALID_NODE;
+    return referee_armor_threshold_request.status;
+  }
   referee_armor_threshold_request.applied_value = 0U;
   referee_armor_threshold_request.result = 0xFFU;
   referee_armor_threshold_request.deadline_ms = referee_elapsed_ms + APP_ARMOR_ID_QUERY_TIMEOUT_MS;

@@ -5,13 +5,6 @@
 #include "bsp_can.h"
 
 #define APP_ARMOR_ENUM_NODE_COUNT 4u
-/* 正式版本保持 4；测试固件可覆盖为 1~3，允许部分装甲板完成枚举。 */
-#ifndef APP_ARMOR_ENUM_REQUIRED_NODE_COUNT
-#define APP_ARMOR_ENUM_REQUIRED_NODE_COUNT APP_ARMOR_ENUM_NODE_COUNT
-#endif
-#if (APP_ARMOR_ENUM_REQUIRED_NODE_COUNT < 1u) || (APP_ARMOR_ENUM_REQUIRED_NODE_COUNT > APP_ARMOR_ENUM_NODE_COUNT)
-#error "APP_ARMOR_ENUM_REQUIRED_NODE_COUNT must be in range 1..4"
-#endif
 #define APP_ARMOR_ENUM_UID_BYTES 12u
 #define APP_ARMOR_ENUM_ID_START 0x120u
 #define APP_ARMOR_ENUM_ID_ANNOUNCE 0x121u
@@ -41,6 +34,7 @@ typedef struct
   APP_ArmorEnumState_t state;
   uint8_t session;
   uint8_t collected_count;
+  uint8_t active_count;
   uint8_t assign_index;
   uint8_t assign_attempt;
   uint32_t round_count;
@@ -58,6 +52,8 @@ void APP_ArmorEnum_ForceRestart(uint32_t now);
 uint8_t APP_ArmorEnum_OnFrame(const BSP_CanFrame_t *frame, uint32_t now);
 uint8_t APP_ArmorEnum_IsReady(void);
 uint8_t APP_ArmorEnum_ActiveNodeCount(void);
+uint8_t APP_ArmorEnum_IsNodeAssigned(uint8_t node_id);
+void APP_ArmorEnum_MarkOffline(uint8_t node_id);
 uint16_t APP_ArmorEnum_BusinessId(uint8_t node_id, uint8_t offset);
 int8_t APP_ArmorEnum_NodeFromBusinessId(uint16_t id, uint8_t offset);
 
